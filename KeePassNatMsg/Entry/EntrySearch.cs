@@ -418,7 +418,6 @@ namespace KeePassNatMsg.Entry
             }
 
             var parms = MakeSearchParameters(configOpt.HideExpired);
-            var searchUrls = configOpt.SearchUrls;
             int listCount = 0;
 
             foreach (PwDatabase db in listDatabases)
@@ -438,7 +437,6 @@ namespace KeePassNatMsg.Entry
                     var listEntries = new PwObjectList<PwEntry>();
                     db.RootGroup.SearchEntries(parms, listEntries);
                     listResult.AddRange(listEntries.Select(x => new PwEntryDatabase(x, db)));
-                    if (searchUrls) AddURLCandidates(db, listResult, parms.RespectEntrySearchingDisabled);
                     searchHost = searchHost.Substring(searchHost.IndexOf(".") + 1);
 
                     //searchHost contains no dot --> prevent possible infinite loop
@@ -450,8 +448,6 @@ namespace KeePassNatMsg.Entry
 
             var filter = new GFunc<PwEntry, bool>((PwEntry e) =>
             {
-                var title = e.Strings.ReadSafe(PwDefs.TitleField);
-                var entryUrl = e.Strings.ReadSafe(PwDefs.UrlField);
                 var c = _ext.GetEntryConfig(e);
                 if (c != null)
                 {
@@ -463,57 +459,62 @@ namespace KeePassNatMsg.Entry
                         return false;
                 }
 
-                if (IsValidUrl(entryUrl, formHost))
+                return true;
+            });
+
+            var filterAdditionalFiledsURL = new GFunc<PwEntry, bool>((PwEntry e) =>
+            {
+                var title = e.Strings.ReadSafe(PwDefs.TitleField);
+                var entryUrl = e.Strings.ReadSafe(PwDefs.UrlField);
+
+                if (entryUrl.Contains(formHost) && IsValidUrl(entryUrl, formHost))
                     return true;
 
-                if (IsValidUrl(title, formHost))
+                if (title.Contains(formHost) && IsValidUrl(title, formHost))
                     return true;
 
-                if (searchUrls)
+                if (configOpt.SearchUrls)
                 {
                     foreach (var sf in e.Strings.Where(s => s.Key.StartsWith("URL", StringComparison.InvariantCultureIgnoreCase) || s.Key.StartsWith("KP2A_URL_", StringComparison.InvariantCultureIgnoreCase)))
                     {
                         var sfv = e.Strings.ReadSafe(sf.Key);
-
-                        if (sf.Key.IndexOf("regex", StringComparison.OrdinalIgnoreCase) >= 0
+                        if (sf.Key.Equals("URL"))
+                        {
+                            // Exclude defaut URL field already check before
+                        }
+                        else if (sf.Key.IndexOf("regex", StringComparison.OrdinalIgnoreCase) >= 0
                             && System.Text.RegularExpressions.Regex.IsMatch(formHost, sfv))
                         {
                             return true;
                         }
-
-                        if (IsValidUrl(sfv, formHost))
-                            return true;
+                        else if (sfv.Contains(formHost))
+                        {
+                            // The field can be multi-line, so for each line we check whether it's a valid URL
+                            foreach (String line in sfv.Split('\n'))
+                            {
+                                if (line.Contains(formHost) && IsValidUrl(line, formHost))
+                                    return true;
+                            }
+                            return false;
+                        }
                     }
                 }
-
-                return formHost.Contains(title) || (!string.IsNullOrEmpty(entryUrl) && formHost.Contains(entryUrl));
+                return false;
             });
 
+            // Filter by authorization
             var result = listResult.Where(e => filter(e.entry));
 
+            // Filter by URL
+            result = result.Where(e => filterAdditionalFiledsURL(e.entry));
+
+            // Filter by expiration
             if (configOpt.HideExpired)
             {
                 result = result.Where(x => !(x.entry.Expires && x.entry.ExpiryTime <= DateTime.UtcNow));
             }
 
             return result;
-        }
-
-        private void AddURLCandidates(PwDatabase db, List<PwEntryDatabase> listResult, bool bRespectEntrySearchingDisabled)
-        {
-            var alreadyFound = listResult.Select(x => x.entry);
-            var listEntries = db.RootGroup.GetEntries(true)
-                .AsEnumerable()
-                .Where(x => !alreadyFound.Contains(x));
-
-            if (bRespectEntrySearchingDisabled) listEntries = listEntries.Where(x => x.GetSearchingEnabled());
-            foreach (var entry in listEntries)
-            {
-                if (!entry.Strings.Any(x =>
-                    x.Key.StartsWith("URL", StringComparison.InvariantCultureIgnoreCase)
-                    && x.Key.ToLowerInvariant().Contains("regex"))) continue;
-                listResult.Add(new PwEntryDatabase(entry, db));
-            }
         }
 
         private bool IsValidUrl(string url, string host)
