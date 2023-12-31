@@ -69,6 +69,7 @@
             this.btnRemoveAllKeys = new System.Windows.Forms.Button();
             this.btnRemoveSelectedKeys = new System.Windows.Forms.Button();
             this.chkUseLegacyHostMatching = new System.Windows.Forms.CheckBox();
+            this.lblSpecialRelease = new System.Windows.Forms.Label();
             this.tabControl1.SuspendLayout();
             this.tabPage1.SuspendLayout();
             this.tabPage2.SuspendLayout();
@@ -119,6 +120,7 @@
             // 
             // tabPage1
             // 
+            this.tabPage1.Controls.Add(this.lblSpecialRelease);
             this.tabPage1.Controls.Add(this.chkUseLegacyHostMatching);
             this.tabPage1.Controls.Add(this.lblVersion);
             this.tabPage1.Controls.Add(this.lblProxyVersion);
@@ -535,6 +537,18 @@
             this.chkUseLegacyHostMatching.Text = "Use legacy host matching (don\'t prompt when host matches title/url)";
             this.chkUseLegacyHostMatching.UseVisualStyleBackColor = true;
             // 
+            // lblSpecialRelease
+            // 
+            this.lblSpecialRelease.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
+            this.lblSpecialRelease.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.lblSpecialRelease.ForeColor = System.Drawing.Color.Orange;
+            this.lblSpecialRelease.Location = new System.Drawing.Point(14, 422);
+            this.lblSpecialRelease.Name = "lblSpecialRelease";
+            this.lblSpecialRelease.Size = new System.Drawing.Size(372, 17);
+            this.lblSpecialRelease.TabIndex = 24;
+            this.lblSpecialRelease.Text = "Unofficial version: just for testing!";
+            // 
             // OptionsForm
             // 
             this.AcceptButton = this.okButton;
@@ -612,5 +626,6 @@
         private System.Windows.Forms.CheckBox chkUseKpxcSettingsKey;
         private System.Windows.Forms.Label lblVersion;
         private System.Windows.Forms.Button btnMigrateSettings;
+        private System.Windows.Forms.Label lblSpecialRelease;
     }
 }
