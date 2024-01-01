@@ -139,13 +139,68 @@ namespace KeePassNatMsg.Entry
 
                 foreach (var entryDatabase in items)
                 {
-                    string entryUrl = string.Copy(entryDatabase.entry.Strings.ReadSafe(PwDefs.UrlField));
-                    if (string.IsNullOrEmpty(entryUrl))
-                        entryUrl = entryDatabase.entry.Strings.ReadSafe(PwDefs.TitleField);
+                    string entryUrl = entryDatabase.entry.Strings.ReadSafe(PwDefs.UrlField);
+                    string title = entryDatabase.entry.Strings.ReadSafe(PwDefs.TitleField);
 
-                    entryUrl = entryUrl.ToLower();
+                    entryDatabase.entry.UsageCount = ulong.MaxValue;
 
-                    entryDatabase.entry.UsageCount = (ulong)LevenshteinDistance(uri.ToString().ToLower(), entryUrl);
+                    // URL field
+                    if (entryUrl.Contains(uri.Host) && IsValidUrl(entryUrl, uri.Host))
+                    {
+                        entryDatabase.entry.UsageCount = (ulong)LevenshteinDistance(uri.ToString().ToLower(), entryUrl.ToLower());
+                    }
+
+                    // Title field
+                    if (title.Contains(uri.Host) && IsValidUrl(title, uri.Host))
+                    {
+                        ulong urlLevenshteinDistance = (ulong)LevenshteinDistance(uri.ToString().ToLower(), title.ToLower());
+                        entryDatabase.entry.UsageCount = Math.Min(entryDatabase.entry.UsageCount, urlLevenshteinDistance);
+                    }
+
+                    // Other fields starting by "URL"
+                    if (configOpt.SearchUrls)
+                    {
+                        ulong bestLevenshteinDistance = entryDatabase.entry.UsageCount;
+                        //if (String.IsNullOrEmpty(entryUrl)) {
+                            // If there is no URL, don't use the distance between URL and an empty string
+                        //    bestLevenshteinDistance = ulong.MaxValue;
+                        //}
+                        
+                        foreach (var sf in entryDatabase.entry.Strings.Where(s => s.Key.StartsWith("URL", StringComparison.InvariantCultureIgnoreCase) || s.Key.StartsWith("KP2A_URL_", StringComparison.InvariantCultureIgnoreCase)))
+                        {
+                            var sfv = entryDatabase.entry.Strings.ReadSafe(sf.Key);
+                            if (sf.Key.Equals("URL"))
+                            {
+                                // Exclude default URL field already check before
+                            }
+                            else if (sf.Key.IndexOf("regex", StringComparison.OrdinalIgnoreCase) >= 0)
+                            {
+                                // The field can be multi-line, so for each line we check whether it's a valid URL
+                                foreach (String line in sfv.Split('\n'))
+                                {
+                                    if (System.Text.RegularExpressions.Regex.IsMatch(uri.ToString().ToLower(), sfv))
+                                    {
+                                        ulong urlLevenshteinDistance = (ulong)LevenshteinDistance(uri.ToString().ToLower(), line.ToLower());
+                                        bestLevenshteinDistance = Math.Min(bestLevenshteinDistance, urlLevenshteinDistance);
+                                    }
+                                }
+                            }
+                            else if (sfv.Contains(uri.ToString().ToLower()))
+                            {
+                                // The field can be multi-line, so for each line we check whether it's a valid URL
+                                foreach (String line in sfv.Split('\n'))
+                                {
+                                    if (line.Contains(uri.ToString().ToLower()))
+                                    {
+                                        ulong urlLevenshteinDistance = (ulong)LevenshteinDistance(uri.ToString().ToLower(), line.ToLower());
+                                        bestLevenshteinDistance = Math.Min(bestLevenshteinDistance, urlLevenshteinDistance);
+                                    }
+                                }
+                            }
+                        }
+                        entryDatabase.entry.UsageCount = bestLevenshteinDistance;
+                    }
+
                 }
 
                 var itemsList = items.ToList();
@@ -476,12 +531,15 @@ namespace KeePassNatMsg.Entry
                 var title = e.Strings.ReadSafe(PwDefs.TitleField);
                 var entryUrl = e.Strings.ReadSafe(PwDefs.UrlField);
 
+                // URL field
                 if (entryUrl.Contains(formHost) && IsValidUrl(entryUrl, formHost))
                     return true;
 
+                // Title field
                 if (title.Contains(formHost) && IsValidUrl(title, formHost))
                     return true;
 
+                // Other fields starting by "URL"
                 if (configOpt.SearchUrls)
                 {
                     foreach (var sf in e.Strings.Where(s => s.Key.StartsWith("URL", StringComparison.InvariantCultureIgnoreCase) || s.Key.StartsWith("KP2A_URL_", StringComparison.InvariantCultureIgnoreCase)))
@@ -489,12 +547,17 @@ namespace KeePassNatMsg.Entry
                         var sfv = e.Strings.ReadSafe(sf.Key);
                         if (sf.Key.Equals("URL"))
                         {
-                            // Exclude defaut URL field already check before
+                            // Exclude default URL field already check before
                         }
-                        else if (sf.Key.IndexOf("regex", StringComparison.OrdinalIgnoreCase) >= 0
-                            && System.Text.RegularExpressions.Regex.IsMatch(formHost, sfv))
+                        else if (sf.Key.IndexOf("regex", StringComparison.OrdinalIgnoreCase) >= 0)
                         {
-                            return true;
+                            // The field can be multi-line, so for each line we check whether it's a valid URL
+                            foreach (String line in sfv.Split('\n'))
+                            {
+                                if (System.Text.RegularExpressions.Regex.IsMatch(formHost, line))
+                                    return true;
+                            }
+                            return false;
                         }
                         else if (sfv.Contains(formHost))
                         {
